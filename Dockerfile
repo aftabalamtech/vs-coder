@@ -10,4 +10,7 @@ RUN mkdir -p /home/coder/project \
 
 WORKDIR /home/coder/project
 
-ENTRYPOINT ["/usr/bin/entrypoint.sh", "--bind-addr", "0.0.0.0:10000", "--auth", "password", "--trusted-origins", "*.clouddabba.dev", "--trusted-origins", "clouddabba.dev", "--log", "debug", "/home/coder/project"]
+# CloudDabba supplies PORT dynamically. code-server supports PORT even when
+# --bind-addr is present, so do not hard-code a runtime port here.
+# Use the exact public origin for the code-server WebSocket origin check.
+ENTRYPOINT ["/usr/bin/entrypoint.sh", "--auth", "password", "--trusted-origins", "https://vs-code.clouddabba.dev", "--trusted-origins", "https://clouddabba.dev", "--log", "debug", "/home/coder/project"]

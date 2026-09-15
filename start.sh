@@ -3,49 +3,14 @@ set -euo pipefail
 
 CODE_SERVER_BIND_ADDR="${CODE_SERVER_BIND_ADDR:-0.0.0.0:8080}"
 WORKSPACE="${DEFAULT_WORKSPACE:-/home/coder/project}"
-CONFIG_DIR="${CODE_SERVER_CONFIG_DIR:-${HOME}/.config/code-server}"
-CONFIG_FILE="${CONFIG_DIR}/config.yaml"
 
-mkdir -p "$WORKSPACE" "$CONFIG_DIR"
+# Keep the official code-server container entrypoint in the startup path.
+# It initializes fixuid, ENTRYPOINTD hooks, dumb-init, and finally launches
+# code-server. Authentication is intentionally left to code-server so that
+# PASSWORD/HASHED_PASSWORD retain their native precedence and behavior.
+mkdir -p "$WORKSPACE"
 
-# The custom entrypoint writes authentication directly to code-server's
-# config. This makes the login credential deterministic across Docker hosts
-# and deployment platforms.
-if [[ -n "${HASHED_PASSWORD:-}" ]]; then
-  AUTH_KEY="hashed-password"
-  AUTH_VALUE="$HASHED_PASSWORD"
-elif [[ -n "${PASSWORD:-}" ]]; then
-  AUTH_KEY="password"
-  AUTH_VALUE="$PASSWORD"
-else
-  echo "ERROR: Set PASSWORD or HASHED_PASSWORD in the container environment." >&2
-  exit 1
-fi
-
-# Passwords must be single-line values. Escape single quotes for YAML.
-if [[ "$AUTH_VALUE" == *$'\n'* || "$AUTH_VALUE" == *$'\r'* ]]; then
-  echo "ERROR: PASSWORD/HASHED_PASSWORD must not contain newline characters." >&2
-  exit 1
-fi
-AUTH_VALUE_YAML="${AUTH_VALUE//\'/\'\'}"
-
-umask 077
-cat > "${CONFIG_FILE}.tmp" <<EOF
-bind-addr: ${CODE_SERVER_BIND_ADDR}
-auth: password
-${AUTH_KEY}: '${AUTH_VALUE_YAML}'
-cert: false
-EOF
-mv "${CONFIG_FILE}.tmp" "$CONFIG_FILE"
-
-# code-server gives environment variables precedence over config-file values.
-# Remove them after generating the config so the credential above is the only
-# credential used by the running server.
-unset PASSWORD HASHED_PASSWORD
-
-echo "Starting code-server on ${CODE_SERVER_BIND_ADDR}"
-
-exec code-server \
-  --config "$CONFIG_FILE" \
+exec /usr/bin/entrypoint.sh \
   --bind-addr "$CODE_SERVER_BIND_ADDR" \
+  --auth password \
   "$WORKSPACE"

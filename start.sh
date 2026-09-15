@@ -8,10 +8,9 @@ CONFIG_FILE="${CONFIG_DIR}/config.yaml"
 
 mkdir -p "$WORKSPACE" "$CONFIG_DIR"
 
-# The upstream code-server image normally starts through its own entrypoint.
-# This repository uses a custom entrypoint, so authentication must be written
-# to code-server's config explicitly instead of relying on image-specific env
-# processing.
+# The custom entrypoint writes authentication directly to code-server's
+# config. This makes the login credential deterministic across Docker hosts
+# and deployment platforms.
 if [[ -n "${HASHED_PASSWORD:-}" ]]; then
   AUTH_KEY="hashed-password"
   AUTH_VALUE="$HASHED_PASSWORD"
@@ -38,6 +37,13 @@ ${AUTH_KEY}: '${AUTH_VALUE_YAML}'
 cert: false
 EOF
 mv "${CONFIG_FILE}.tmp" "$CONFIG_FILE"
+
+# code-server gives environment variables precedence over config-file values.
+# Remove them after generating the config so the credential above is the only
+# credential used by the running server.
+unset PASSWORD HASHED_PASSWORD
+
+echo "Starting code-server on ${CODE_SERVER_BIND_ADDR}"
 
 exec code-server \
   --config "$CONFIG_FILE" \

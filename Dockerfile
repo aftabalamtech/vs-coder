@@ -10,4 +10,4 @@ RUN mkdir -p /home/coder/project \
 
 WORKDIR /home/coder/project
 
-ENTRYPOINT ["/usr/bin/entrypoint.sh", "--bind-addr", "0.0.0.0:10000", "--auth", "password", "--trusted-origins", "*.clouddabba.dev", "--trusted-origins", "clouddabba.dev", "/home/coder/project"]
+ENTRYPOINT ["/usr/bin/entrypoint.sh", "--bind-addr", "0.0.0.0:10000", "--auth", "password", "--trusted-origins", "*.clouddabba.dev", "--trusted-origins", "clouddabba.dev", "--log", "debug", "/home/coder/project"]

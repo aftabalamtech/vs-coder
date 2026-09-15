@@ -1,6 +1,6 @@
 # VS Coder
 
-A minimal Dockerfile-only deployment wrapper around the official `codercom/code-server` image.
+A minimal Dockerfile-only deployment wrapper around the official `codercom/code-server` image, configured for CloudDabba.
 
 There is intentionally **no Docker Compose configuration and no custom startup script**. The official code-server container entrypoint is used directly.
 
@@ -8,11 +8,12 @@ There is intentionally **no Docker Compose configuration and no custom startup s
 
 - Official `codercom/code-server:latest` image
 - Dockerfile-only deployment
+- CloudDabba-compatible container port `10000`
+- HTTP and WebSocket traffic on the same origin
 - Official upstream container entrypoint
 - Browser-based VS Code
 - Password authentication
 - Workspace at `/home/coder/project`
-- Port `8080` bound to `0.0.0.0`
 
 ## Project Structure
 
@@ -27,18 +28,20 @@ vs-coder/
 ## How It Works
 
 ```text
-Docker build
-    ↓
-Dockerfile
-    ↓
-codercom/code-server:latest
-    ↓
+CloudDabba HTTPS URL
+        ↓
+CloudDabba reverse proxy
+        ↓
+Container :10000
+        ↓
 official /usr/bin/entrypoint.sh
-    ↓
+        ↓
 code-server
-    ↓
+        ↓
 /home/coder/project
 ```
+
+The container listens on `0.0.0.0:10000`. Using the same port for code-server's HTTP and WebSocket traffic avoids the previous workbench disconnect (`WebSocket close with status code 1006`) caused by a port/proxy mismatch.
 
 The repository deliberately keeps the upstream image's startup behavior instead of replacing it with a custom shell script. This preserves the image's `fixuid`, startup hooks, `dumb-init`, and native authentication handling.
 
@@ -50,26 +53,30 @@ The Dockerfile currently contains the requested password for this deployment.
 
 code-server officially supports `PASSWORD` and `HASHED_PASSWORD`; `HASHED_PASSWORD` takes precedence when both are present.
 
+## CloudDabba Deployment
+
+CloudDabba's deployment platform routes applications to the container port it expects for deployed services. This Dockerfile explicitly exposes and binds code-server to port `10000` so the platform can proxy both normal HTTP requests and the code-server WebSocket connection through the same service.
+
+After pushing this change, **redeploy/rebuild the application from the latest `main` commit**. A previously built image will still contain the old `8080` configuration.
+
 ## Build
 
 ```bash
 docker build --no-cache -t vs-coder:latest .
 ```
 
-The `--no-cache` option is recommended after changing authentication or the Dockerfile so an old image layer cannot be reused.
-
-## Run
+## Run Locally
 
 ```bash
 docker run --name vs-coder \
-  -p 8080:8080 \
+  -p 10000:10000 \
   vs-coder:latest
 ```
 
 Open:
 
 ```text
-http://localhost:8080
+http://localhost:10000
 ```
 
 ## Persistent Workspace
@@ -78,38 +85,26 @@ For persistent project files:
 
 ```bash
 docker run --name vs-coder \
-  -p 8080:8080 \
+  -p 10000:10000 \
   -v vs_coder_workspace:/home/coder/project \
   vs-coder:latest
 ```
 
 For persistent code-server configuration, attach persistent storage to `/home/coder/.config` when required.
 
-## Deployment
-
-The deployment platform only needs to:
-
-1. Build the repository's `Dockerfile`.
-2. Run the resulting image.
-3. Expose container port `8080`.
-
-No Compose file is required.
-
 ## Troubleshooting
+
+### Workbench shows `WebSocket close with status code 1006`
+
+Make sure CloudDabba has redeployed the **latest commit** and that the running container is using port `10000`. The current Dockerfile binds code-server directly to `0.0.0.0:10000`, so the browser's HTTP and WebSocket traffic reaches the same container endpoint.
+
+Do a fresh redeploy after changing the Dockerfile; do not reuse the old image configured for port `8080`.
 
 ### Login says `Incorrect password`
 
-Make sure the platform has built the **latest commit** and perform a clean rebuild/redeploy. Do not reuse an old Docker image.
+Make sure the latest image has been built. The current Dockerfile sets `PASSWORD=marsel` and uses the official code-server authentication path.
 
-For a local build:
-
-```bash
-docker build --no-cache -t vs-coder:latest .
-docker rm -f vs-coder 2>/dev/null || true
-docker run --name vs-coder -p 8080:8080 vs-coder:latest
-```
-
-The current Dockerfile uses the official code-server entrypoint directly, so there is no custom authentication script that can accidentally replace or reinterpret the password.
+If a persistent `/home/coder/.config` volume contains an old configuration, remove/reset that configuration or provide the intended password through the deployment environment.
 
 ### Terminal does not work
 
@@ -117,13 +112,13 @@ The custom startup script has been removed. The official image entrypoint is use
 
 ### Port is unreachable
 
-The image is configured to listen on:
+The image listens on:
 
 ```text
-0.0.0.0:8080
+0.0.0.0:10000
 ```
 
-Your deployment platform must expose container port `8080`.
+The deployment platform must route the public application to container port `10000`.
 
 ### Check logs
 
@@ -141,7 +136,7 @@ docker logs vs-coder
 
 ## Upstream
 
-This repository uses the official `codercom/code-server` container image. Current code-server documentation confirms the official Docker image supports `amd64` and `arm64`, and documents `PASSWORD`/`HASHED_PASSWORD` authentication.
+This repository uses the official `codercom/code-server` container image.
 
 ## License
 

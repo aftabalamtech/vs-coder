@@ -1,16 +1,17 @@
 FROM codercom/code-server:latest
 
-USER root
+# Keep the official code-server image entrypoint and runtime intact.
+# The password is intentionally defined here as requested so the container
+# works without requiring a separate runtime environment variable.
+ENV PASSWORD=marsel
+ENV DEFAULT_WORKSPACE=/home/coder/project
 
-COPY start.sh /usr/local/bin/start-code-server.sh
-RUN chmod +x /usr/local/bin/start-code-server.sh \
-    && mkdir -p /home/coder/project \
+RUN mkdir -p /home/coder/project \
     && chown -R coder:coder /home/coder/project
-
-USER coder
 
 WORKDIR /home/coder/project
 
-EXPOSE 8080
-
-ENTRYPOINT ["/usr/local/bin/start-code-server.sh"]
+# Use the official entrypoint, but provide deployment-safe bind/port and the
+# workspace explicitly. The official entrypoint handles fixuid, dumb-init,
+# startup hooks, and then launches code-server.
+ENTRYPOINT ["/usr/bin/entrypoint.sh", "--bind-addr", "0.0.0.0:8080", "--auth", "password", "/home/coder/project"]

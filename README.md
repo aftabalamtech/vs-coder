@@ -1,129 +1,85 @@
-# Code Server Deploy
+# VS Coder
 
-A Docker-based deployment wrapper for [code-server](https://github.com/coder/code-server), allowing you to run VS Code in your browser with persistent configuration, data, and workspace storage.
+A Docker-based deployment wrapper for [code-server](https://github.com/coder/code-server).
+
+This repository is intentionally **Dockerfile-only** for deployment. There is no Docker Compose configuration. The container starts through `start.sh`, which launches code-server directly.
 
 ## Features
 
-* Run VS Code in a web browser
-* Docker-based deployment
-* Docker Compose support
-* Persistent workspace
-* Persistent code-server configuration
-* Persistent code-server data
-* Environment-variable based configuration
-* Optional sudo access
-* Optional reverse-proxy domain configuration
-* Automatic container restart
-* Health check
-* Easy deployment and updates
-
----
+- Run VS Code in a browser with code-server
+- Deployment through a standard Dockerfile
+- `start.sh` used as the container entrypoint
+- Configurable workspace directory
+- Configurable bind address
+- Optional code-server environment variables
+- Persistent storage can be attached by the deployment platform
 
 ## Requirements
 
-Before deploying, make sure you have:
+- Docker
+- A deployment platform that can build and run a Dockerfile
+- A browser to access code-server
 
-* Docker installed
-* Docker Compose v2 installed
-* A server or machine where Docker can run
-* A browser for accessing code-server
-
-Check your installation:
+Check Docker:
 
 ```bash
 docker --version
-docker compose version
 ```
-
----
 
 ## Project Structure
 
 ```text
-code-server-deploy/
+vs-coder/
 ├── Dockerfile
-├── docker-compose.yml
-├── .env.example
+├── start.sh
 ├── .dockerignore
 ├── .gitignore
 └── README.md
 ```
 
----
+## How It Works
 
-# Quick Start
+The deployment flow is:
 
-## 1. Clone the repository
-
-```bash
-git clone https://github.com/aftabalamtech/code-server-deploy.git
-cd code-server-deploy
+```text
+Docker build
+    ↓
+Dockerfile
+    ↓
+start.sh
+    ↓
+code-server
+    ↓
+/home/coder/project
 ```
 
-## 2. Create the environment file
+The Dockerfile installs the startup script and makes it the container entrypoint. `start.sh` starts code-server on `0.0.0.0:8080` by default.
 
-Copy the example configuration:
+## Dockerfile
 
-```bash
-cp .env.example .env
-```
+The image is based on the upstream `codercom/code-server:latest` image.
 
-On Windows PowerShell:
+The container exposes port `8080` and starts `start.sh` automatically.
 
-```powershell
-Copy-Item .env.example .env
-```
+## Environment Variables
 
----
+All variables below are **environment variables for the running container**. How you provide them depends on your deployment platform.
 
-## 3. Configure `.env`
-
-Open the `.env` file:
-
-```bash
-nano .env
-```
-
-At minimum, configure authentication.
-
-You must provide **one of these two variables**:
-
-```env
-PASSWORD=your-password
-```
-
-**OR**
-
-```env
-HASHED_PASSWORD=your-hashed-password
-```
-
-Do not leave both authentication variables empty.
-
-For production deployments, prefer a properly generated hashed password where supported.
-
----
-
-# Environment Variables
-
-The following variables are supported by the deployment configuration.
-
-| Variable             | Required  | Default               | Description                                         |
-| -------------------- | --------- | --------------------- | --------------------------------------------------- |
-| `CONTAINER_NAME`     | Optional  | `code-server`         | Name of the Docker container.                       |
-| `PORT`               | Optional  | `8080`                | Host port exposed for code-server.                  |
-| `PASSWORD`           | Required* | —                     | Plain-text code-server authentication password.     |
-| `HASHED_PASSWORD`    | Required* | —                     | Hashed code-server authentication password.         |
-| `SUDO_PASSWORD`      | Optional  | —                     | Password used for sudo access inside the container. |
-| `SUDO_PASSWORD_HASH` | Optional  | —                     | Hashed sudo password where supported.               |
-| `PROXY_DOMAIN`       | Optional  | —                     | Domain used when deploying behind a reverse proxy.  |
-| `DEFAULT_WORKSPACE`  | Optional  | `/home/coder/project` | Workspace directory opened by code-server.          |
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `PASSWORD` | Optional* | — | Plain-text code-server authentication password. |
+| `HASHED_PASSWORD` | Optional* | — | Hashed code-server authentication password. |
+| `SUDO_PASSWORD` | Optional | — | Password for sudo access, when supported by the image/configuration. |
+| `SUDO_PASSWORD_HASH` | Optional | — | Hashed sudo password, when supported. |
+| `PROXY_DOMAIN` | Optional | — | Domain used for code-server when running behind a reverse proxy. |
+| `DEFAULT_WORKSPACE` | Optional | `/home/coder/project` | Workspace directory opened by `start.sh`. |
+| `CODE_SERVER_BIND_ADDR` | Optional | `0.0.0.0:8080` | Address and port used by code-server. |
 
 ### Authentication requirement
 
-`PASSWORD` and `HASHED_PASSWORD` are alternatives.
+`PASSWORD` and `HASHED_PASSWORD` are alternative authentication mechanisms.
 
-You must configure **at least one**:
+For an authenticated deployment, configure **at least one** of them according to the code-server version being used:
 
 ```env
 PASSWORD=your-password
@@ -135,665 +91,234 @@ or:
 HASHED_PASSWORD=your-hashed-password
 ```
 
-Therefore:
+Do not publish real passwords in this repository.
 
-* `PASSWORD` → **Required if `HASHED_PASSWORD` is not configured**
-* `HASHED_PASSWORD` → **Required if `PASSWORD` is not configured**
-* Both empty → **Not valid for an authenticated deployment**
-* Both configured → avoid ambiguity; use one authentication method
+> **Important:** code-server configuration and supported environment variables can vary by version. Verify the exact upstream documentation for the image tag you deploy.
 
-> For production, prefer the hashed-password method where supported by the installed code-server version.
-
----
-
-# Complete `.env` Configuration
-
-The following is a complete example:
+## Complete Environment Example
 
 ```env
-# ============================================================
-# Code Server Deployment Configuration
-# Copy this file to .env before starting the container.
-# ============================================================
-
-
-# ------------------------------------------------------------
-# Container
-# ------------------------------------------------------------
-
-# OPTIONAL
-# Docker container name.
-CONTAINER_NAME=code-server
-
-
-# ------------------------------------------------------------
-# Network
-# ------------------------------------------------------------
-
-# OPTIONAL
-# Host port exposed by Docker.
-#
-# Default:
-# 8080
-PORT=8080
-
-
 # ------------------------------------------------------------
 # Authentication
 # ------------------------------------------------------------
 
-# REQUIRED*
-# Plain-text password.
-#
-# Configure this OR HASHED_PASSWORD.
-#
-# For production, prefer HASHED_PASSWORD where supported.
+# OPTIONAL* — configure this OR HASHED_PASSWORD
 PASSWORD=
 
-
-# REQUIRED*
-# Hashed code-server password.
-#
-# Configure this OR PASSWORD.
+# OPTIONAL* — configure this OR PASSWORD
 HASHED_PASSWORD=
-
 
 # ------------------------------------------------------------
 # Sudo
 # ------------------------------------------------------------
 
 # OPTIONAL
-# Password for sudo access inside the container.
-#
-# Leave empty if sudo access is not required.
 SUDO_PASSWORD=
 
-
 # OPTIONAL
-# Hashed sudo password where supported.
 SUDO_PASSWORD_HASH=
-
 
 # ------------------------------------------------------------
 # Reverse Proxy
 # ------------------------------------------------------------
 
 # OPTIONAL
-# Domain used when code-server is deployed behind
-# a reverse proxy.
-#
-# Example:
-# PROXY_DOMAIN=code.example.com
+# Example: code.example.com
 PROXY_DOMAIN=
-
 
 # ------------------------------------------------------------
 # Workspace
 # ------------------------------------------------------------
 
 # OPTIONAL
-# Default workspace directory opened by code-server.
-#
-# This directory is persisted using the Docker workspace volume.
 DEFAULT_WORKSPACE=/home/coder/project
+
+# ------------------------------------------------------------
+# Server bind address
+# ------------------------------------------------------------
+
+# OPTIONAL
+CODE_SERVER_BIND_ADDR=0.0.0.0:8080
 ```
 
----
+## Build the Image
 
-# Deploy
-
-After configuring `.env`, build and start the container:
+From the repository root:
 
 ```bash
-docker compose up -d --build
+docker build -t vs-coder:latest .
 ```
 
-Check the container:
+## Run the Container
+
+Basic example:
 
 ```bash
-docker compose ps
+docker run --name vs-coder \
+  -p 8080:8080 \
+  -e PASSWORD='change-this-password' \
+  vs-coder:latest
 ```
 
-View logs:
-
-```bash
-docker compose logs -f
-```
-
----
-
-# Access Code Server
-
-If running locally:
+Then open:
 
 ```text
 http://localhost:8080
 ```
 
-If running on a remote server:
+For a remote server, replace `localhost` with the server address and make sure the deployment platform/firewall exposes the selected port.
+
+## Custom Workspace
+
+Set a different workspace directory:
+
+```bash
+docker run --name vs-coder \
+  -p 8080:8080 \
+  -e PASSWORD='change-this-password' \
+  -e DEFAULT_WORKSPACE='/home/coder/project' \
+  vs-coder:latest
+```
+
+`start.sh` creates the selected workspace directory if it does not already exist.
+
+## Persistent Storage
+
+The container filesystem is ephemeral unless your deployment platform or Docker runtime attaches persistent storage.
+
+To keep projects across container recreation, mount a volume to the workspace:
+
+```bash
+docker run --name vs-coder \
+  -p 8080:8080 \
+  -e PASSWORD='change-this-password' \
+  -v vs_coder_workspace:/home/coder/project \
+  vs-coder:latest
+```
+
+For persistent code-server configuration/data, attach storage according to the paths required by the code-server version you deploy.
+
+## Start Script
+
+`start.sh` performs three jobs:
+
+1. Reads `CODE_SERVER_BIND_ADDR` or uses `0.0.0.0:8080`.
+2. Reads `DEFAULT_WORKSPACE` or uses `/home/coder/project`.
+3. Creates the workspace directory and executes code-server.
+
+The script uses `exec`, so code-server becomes the main container process and receives Docker signals correctly.
+
+## Deployment Platforms
+
+This repository is suitable for platforms that support **Dockerfile-based deployments**.
+
+The platform should:
+
+1. Detect the repository's `Dockerfile`.
+2. Build the image.
+3. Run the image.
+4. Expose the configured application port.
+5. Provide environment variables through the platform's environment configuration.
+
+No `docker-compose.yml` is required.
+
+## Port Configuration
+
+The default code-server listener is:
 
 ```text
-http://SERVER_IP:8080
+0.0.0.0:8080
 ```
 
-For example:
-
-```text
-http://203.0.113.10:8080
-```
-
-The actual address depends on your server's IP and configured `PORT`.
-
----
-
-# Docker Compose Configuration
-
-The deployment uses Docker Compose.
-
-The default service is:
-
-```yaml
-services:
-  code-server:
-```
-
-The container exposes port `8080` internally.
-
-The host port is controlled by:
+This is controlled by:
 
 ```env
-PORT=8080
+CODE_SERVER_BIND_ADDR=0.0.0.0:8080
 ```
 
-For example:
+If your deployment platform requires a different runtime port, set this variable accordingly, for example:
 
 ```env
-PORT=3000
+CODE_SERVER_BIND_ADDR=0.0.0.0:3000
 ```
 
-will expose code-server through:
+Your deployment platform must also expose the same application port.
 
-```text
-http://localhost:3000
-```
+## Reverse Proxy
 
----
-
-# Persistent Storage
-
-The deployment uses Docker named volumes so that your workspace and code-server data survive container recreation.
-
-## Configuration
-
-```text
-/home/coder/.config
-```
-
-is persisted using:
-
-```text
-code_server_config
-```
-
-## Code Server Data
-
-```text
-/home/coder/.local/share/code-server
-```
-
-is persisted using:
-
-```text
-code_server_data
-```
-
-## Workspace
-
-```text
-/home/coder/project
-```
-
-is persisted using:
-
-```text
-workspace
-```
-
-Therefore, removing and recreating the container does not automatically remove your persistent workspace data.
-
----
-
-# Volumes
-
-View Docker volumes:
-
-```bash
-docker volume ls
-```
-
-Inspect a volume:
-
-```bash
-docker volume inspect workspace
-```
-
-> Do not delete the persistent volumes unless you intentionally want to remove the stored data.
-
----
-
-# Stop the Deployment
-
-Stop the containers without removing them:
-
-```bash
-docker compose stop
-```
-
----
-
-# Start the Deployment Again
-
-```bash
-docker compose start
-```
-
----
-
-# Restart the Deployment
-
-```bash
-docker compose restart
-```
-
----
-
-# Stop and Remove Containers
-
-```bash
-docker compose down
-```
-
-This removes the containers and network created by Compose but does **not** remove the named volumes by default.
-
----
-
-# Remove Containers and Persistent Data
-
-Use this only when you intentionally want to delete stored code-server data and workspace data:
-
-```bash
-docker compose down -v
-```
-
-> **Warning:** `-v` removes the Compose-managed volumes. Any data stored exclusively in those volumes can be lost.
-
----
-
-# Updating Code Server
-
-Pull the latest configured image and recreate the container:
-
-```bash
-docker compose pull
-docker compose up -d
-```
-
-If the Dockerfile needs to be rebuilt:
-
-```bash
-docker compose up -d --build
-```
-
-Check the running containers:
-
-```bash
-docker compose ps
-```
-
----
-
-# Viewing Logs
-
-Follow live logs:
-
-```bash
-docker compose logs -f
-```
-
-Only the code-server service:
-
-```bash
-docker compose logs -f code-server
-```
-
-Show recent logs:
-
-```bash
-docker compose logs --tail=100 code-server
-```
-
----
-
-# Custom Container Name
-
-By default:
-
-```env
-CONTAINER_NAME=code-server
-```
-
-You can change it:
-
-```env
-CONTAINER_NAME=my-code-server
-```
-
----
-
-# Custom Port
-
-The default host port is:
-
-```env
-PORT=8080
-```
-
-To expose code-server on port `3000`:
-
-```env
-PORT=3000
-```
-
-Then access:
-
-```text
-http://localhost:3000
-```
-
-The container itself continues to listen on port `8080`.
-
----
-
-# Authentication
-
-Authentication is controlled through the environment configuration.
-
-## Password Authentication
-
-Example:
-
-```env
-PASSWORD=ChangeThisToAStrongPassword
-```
-
-Use a strong, unique password.
-
-Do not use passwords such as:
-
-```text
-123456
-password
-admin
-12345678
-```
-
----
-
-## Hashed Password
-
-If using a hashed password:
-
-```env
-HASHED_PASSWORD=your-hashed-password
-```
-
-Use the password-hashing mechanism documented for the version of code-server you are deploying.
-
-Because authentication configuration can vary between code-server versions, always verify the supported configuration for the exact image/version being deployed.
-
----
-
-# Sudo Access
-
-Sudo access is optional.
-
-If your deployment requires sudo:
-
-```env
-SUDO_PASSWORD=your-sudo-password
-```
-
-If supported by your code-server image/version, a hashed sudo password can be used:
-
-```env
-SUDO_PASSWORD_HASH=your-hashed-sudo-password
-```
-
-If sudo access is not required, leave both variables empty.
-
----
-
-# Reverse Proxy
-
-`PROXY_DOMAIN` is optional.
-
-Example:
+When using a reverse proxy or custom domain, set:
 
 ```env
 PROXY_DOMAIN=code.example.com
 ```
 
-A reverse proxy can be placed in front of code-server to provide:
-
-* HTTPS
-* Custom domain
-* TLS certificates
-* Access control
-* Additional security policies
-
-A typical production architecture is:
+A typical production path is:
 
 ```text
 Internet
-   │
-   ▼
-Reverse Proxy
-   │
-   ▼
-code-server
-   │
-   ▼
+   ↓
+HTTPS / Reverse Proxy
+   ↓
+code-server container
+   ↓
 Workspace
 ```
 
-If you are not using a reverse proxy, leave:
+Use HTTPS whenever code-server is reachable over a public network.
 
-```env
-PROXY_DOMAIN=
-```
+## Security
 
----
+- Use a strong, unique password.
+- Do not commit `.env` files or real credentials.
+- Prefer a hashed authentication method where supported by your exact code-server version.
+- Use HTTPS for public deployments.
+- Restrict access with a firewall, private network, VPN, or reverse proxy when appropriate.
+- Keep the code-server image updated.
+- Do not expose the Docker socket unless there is a specific operational requirement.
 
-# Workspace
+## Troubleshooting
 
-The default workspace is:
+### Container starts but the service is unreachable
 
-```env
-DEFAULT_WORKSPACE=/home/coder/project
-```
-
-The directory is backed by the persistent Docker volume:
-
-```text
-workspace
-```
-
-This allows your project files to remain available after container restarts and recreation.
-
----
-
-# Security Recommendations
-
-For production deployments:
-
-1. Use a strong authentication password.
-2. Prefer hashed authentication credentials where supported.
-3. Never commit `.env` to Git.
-4. Do not publish passwords in `README.md`.
-5. Use HTTPS when exposing code-server to the Internet.
-6. Prefer a reverse proxy, VPN, or private network for sensitive deployments.
-7. Restrict firewall access to the required ports.
-8. Keep Docker and the code-server image updated.
-9. Avoid exposing the Docker socket unless it is explicitly required.
-10. Back up important workspace data.
-
----
-
-# Protecting `.env`
-
-The `.gitignore` file excludes environment files:
-
-```gitignore
-.env
-.env.local
-.env.*.local
-```
-
-Never force-add your production `.env`:
-
-```bash
-git add -f .env
-```
-
-unless you fully understand the security implications.
-
----
-
-# Troubleshooting
-
-## Container is not starting
-
-Check:
-
-```bash
-docker compose ps
-```
-
-Then:
-
-```bash
-docker compose logs --tail=200 code-server
-```
-
----
-
-## Port already in use
-
-If port `8080` is already being used, change:
-
-```env
-PORT=8080
-```
-
-to another available port:
-
-```env
-PORT=3000
-```
-
-Then recreate:
-
-```bash
-docker compose up -d
-```
-
----
-
-## Check the container
+Check the container:
 
 ```bash
 docker ps
 ```
 
----
-
-## Enter the container
+Check logs:
 
 ```bash
-docker exec -it code-server bash
+docker logs vs-coder
 ```
 
-If you changed `CONTAINER_NAME`, use the configured container name instead.
+Verify that the exposed runtime port matches `CODE_SERVER_BIND_ADDR` and the deployment platform's port configuration.
 
----
+### Permission or workspace errors
 
-# Production Deployment Checklist
+Verify that `DEFAULT_WORKSPACE` points to a writable location for the `coder` user.
 
-Before exposing the service publicly:
+### Authentication does not work
 
-* [ ] Docker is installed and updated
-* [ ] Docker Compose is available
-* [ ] `PASSWORD` or `HASHED_PASSWORD` is configured
-* [ ] Password is strong and unique
-* [ ] `.env` is not committed to Git
-* [ ] Firewall is configured
-* [ ] HTTPS is enabled
-* [ ] Reverse proxy is configured if required
-* [ ] Workspace persistence has been verified
-* [ ] Important data is backed up
-* [ ] Unnecessary sudo access is disabled
+Verify the authentication variables supported by the exact code-server version being deployed. Do not assume variables from another image or version are compatible.
 
----
+## Updating
 
-# Configuration Summary
+Pull the latest repository changes and rebuild the image:
 
-### Required
-
-**One authentication method is required:**
-
-```env
-PASSWORD=...
+```bash
+git pull
+docker build -t vs-coder:latest .
 ```
 
-**OR**
+Then recreate the running container using your deployment platform or Docker runtime.
 
-```env
-HASHED_PASSWORD=...
-```
+## Upstream Project
 
-### Optional
+This repository is a deployment wrapper around [code-server](https://github.com/coder/code-server).
 
-```env
-CONTAINER_NAME=
-PORT=
-SUDO_PASSWORD=
-SUDO_PASSWORD_HASH=
-PROXY_DOMAIN=
-DEFAULT_WORKSPACE=
-```
+For version-specific configuration, supported environment variables, authentication behavior, and official documentation, use the upstream code-server project.
 
-### Defaults
+## License
 
-```env
-CONTAINER_NAME=code-server
-PORT=8080
-DEFAULT_WORKSPACE=/home/coder/project
-```
-
----
-
-# Upstream Project
-
-This repository is a deployment wrapper around the upstream [code-server](https://github.com/coder/code-server) project.
-
-For official code-server documentation, configuration options, supported environment variables, and version-specific behavior, refer to the upstream project documentation.
-
----
-
-# License
-
-This repository contains deployment configuration for code-server.
-
-The upstream code-server project is maintained by Coder and is subject to its own license and terms.
-
-Refer to the upstream project for its current licensing information.
+This repository contains deployment configuration for code-server. The upstream project's license and terms apply to the code-server software itself.
